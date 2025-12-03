@@ -19,6 +19,7 @@ app.use(express.json());
 const allowedOrigins = [
   "http://localhost:5173", // Vite
   "http://localhost:3000", // CRA
+  "https://employee-management-aritha.netlify.app", // add this
 ];
 
 app.use(
