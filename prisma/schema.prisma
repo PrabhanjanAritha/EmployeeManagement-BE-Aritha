@@ -1,0 +1,59 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  role         String   @default("hr") // 'hr', 'admin', etc.
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Team {
+  id        Int        @id @default(autoincrement())
+  name      String
+  employees Employee[]
+}
+
+model Client {
+  id        Int        @id @default(autoincrement())
+  name      String
+  industry  String?
+  employees Employee[]
+}
+
+model Employee {
+  id                        Int      @id @default(autoincrement())
+  employeeCode              String?  @unique        // Employee ID from form
+  firstName                 String
+  lastName                  String
+  email                     String   @unique        // main email (we’ll store companyEmail here)
+  personalEmail             String?
+  companyEmail              String?
+  phone                     String?
+  dateOfBirth               DateTime?
+  dateOfJoining             DateTime?
+  experienceYearsAtJoining  Int?
+  experienceMonthsAtJoining Int?
+  title                     String?
+  teamName                  String?                 // from your "Team" select for now
+
+  teamId    Int?
+  clientId  Int?
+  team      Team?    @relation(fields: [teamId], references: [id])
+  client    Client?  @relation(fields: [clientId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
