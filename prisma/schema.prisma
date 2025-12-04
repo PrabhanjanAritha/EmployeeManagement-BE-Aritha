@@ -18,6 +18,7 @@ model User {
   role         String   @default("hr") // 'hr', 'admin', etc.
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  notes      Note[]
 }
 
 model Team {
@@ -48,6 +49,7 @@ model Employee {
   experienceMonthsAtJoining Int?
   title                     String?
   teamName                  String?                 // from your "Team" select for now
+  notes      Note[]
 
   teamId    Int?
   clientId  Int?
@@ -56,4 +58,18 @@ model Employee {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Note {
+  id         Int      @id @default(autoincrement())
+  content    String
+  noteDate   DateTime?
+  createdAt  DateTime @default(now())
+
+  // relations
+  employeeId Int
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  authorId   Int
+  author     User     @relation(fields: [authorId], references: [id])
 }
