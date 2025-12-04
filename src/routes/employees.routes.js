@@ -12,6 +12,10 @@ const router = express.Router();
 
 router.use(requireAuth);
 
+// IMPORTANT: notes routes must be before `/:id`
+router.get("/:id/notes", getEmployeeNotes);
+router.post("/:id/notes", addEmployeeNote);
+
 router.get("/", getEmployees);
 router.get("/:id", getEmployeeById);
 router.post("/", createEmployee);
