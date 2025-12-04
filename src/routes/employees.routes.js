@@ -7,7 +7,11 @@ const {
   updateEmployee,
   deleteEmployee,
 } = require("../controllers/employees.controller");
-
+const {
+  getEmployeeNotes,
+  addEmployeeNote,
+} = require("../controllers/notes.controller");
+getEmployeeNotes;
 const router = express.Router();
 
 router.use(requireAuth);
