@@ -192,7 +192,7 @@ async function getEmployees(req, res) {
         where,
         include: {
           team: { select: { id: true, name: true } },
-          client: { select: { id: true, name: true, industry: true } },
+          client: { select: { id: true, name: true } },
           _count: { select: { notes: true } }, // Count of notes for each employee
         },
         orderBy: { [orderByField]: orderByDirection },
