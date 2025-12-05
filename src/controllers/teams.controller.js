@@ -1,83 +1,529 @@
+// controllers/teams.controller.js
+
+/**
+ * GET /api/teams
+ * Get all teams with optional filters
+ */
 async function getTeams(req, res) {
   const prisma = req.prisma;
+
   try {
+    const { clientId, search, includeEmployees } = req.query;
+
+    const where = {};
+
+    // Filter by client
+    if (clientId) {
+      where.clientId = Number(clientId);
+    }
+
+    // Search by team name or manager name
+    if (search && search.trim()) {
+      where.OR = [
+        { name: { contains: search.trim(), mode: "insensitive" } },
+        { title: { contains: search.trim(), mode: "insensitive" } },
+        { managerName: { contains: search.trim(), mode: "insensitive" } },
+      ];
+    }
+
     const teams = await prisma.team.findMany({
-      include: { employees: true },
+      where,
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+            pocInternalName: true,
+            pocInternalEmail: true,
+          },
+        },
+        employees:
+          includeEmployees === "true"
+            ? {
+                where: { active: true },
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                  title: true,
+                },
+              }
+            : false,
+        _count: {
+          select: { employees: true },
+        },
+      },
+      orderBy: { name: "asc" },
     });
-    res.json(teams);
+
+    res.json({
+      success: true,
+      data: teams,
+    });
   } catch (err) {
     console.error("getTeams error:", err);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch teams",
+      error: process.env.NODE_ENV === "development" ? err.message : undefined,
+    });
   }
 }
 
+/**
+ * GET /api/teams/:id
+ * Get a single team by ID with full details
+ */
 async function getTeamById(req, res) {
   const prisma = req.prisma;
   const id = Number(req.params.id);
 
+  if (isNaN(id)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid team ID",
+    });
+  }
+
   try {
     const team = await prisma.team.findUnique({
       where: { id },
-      include: { employees: true },
+      include: {
+        client: true,
+        employees: {
+          where: { active: true },
+          select: {
+            id: true,
+            employeeCode: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            title: true,
+            dateOfJoining: true,
+          },
+          orderBy: { firstName: "asc" },
+        },
+        _count: {
+          select: {
+            employees: true,
+          },
+        },
+      },
     });
 
     if (!team) {
-      return res.status(404).json({ message: "Team not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Team not found",
+      });
     }
 
-    res.json(team);
+    res.json({
+      success: true,
+      data: team,
+    });
   } catch (err) {
     console.error("getTeamById error:", err);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch team",
+      error: process.env.NODE_ENV === "development" ? err.message : undefined,
+    });
   }
 }
 
+/**
+ * POST /api/teams
+ * Create a new team
+ */
 async function createTeam(req, res) {
   const prisma = req.prisma;
-  try {
-    const { name } = req.body;
 
-    const team = await prisma.team.create({
-      data: { name },
+  try {
+    const {
+      name,
+      title,
+      managerName,
+      managerEmail,
+      clientId,
+      employeeIds, // Array of employee IDs to associate
+    } = req.body;
+
+    // Validation
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Team name is required",
+      });
+    }
+
+    // Validate manager email if provided
+    if (managerEmail && !isValidEmail(managerEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid manager email format",
+      });
+    }
+
+    // Check if team name already exists
+    const existingTeam = await prisma.team.findUnique({
+      where: { name: name.trim() },
     });
 
-    res.status(201).json(team);
+    if (existingTeam) {
+      return res.status(409).json({
+        success: false,
+        message: "Team name already exists",
+      });
+    }
+
+    // Verify client exists if provided
+    if (clientId) {
+      const clientExists = await prisma.client.findUnique({
+        where: { id: Number(clientId) },
+      });
+      if (!clientExists) {
+        return res.status(404).json({
+          success: false,
+          message: "Client not found",
+        });
+      }
+    }
+
+    // Create team
+    const team = await prisma.team.create({
+      data: {
+        name: name.trim(),
+        title: title?.trim() || null,
+        managerName: managerName?.trim() || null,
+        managerEmail: managerEmail?.trim() || null,
+        clientId: clientId ? Number(clientId) : null,
+      },
+      include: {
+        client: true,
+        _count: {
+          select: { employees: true },
+        },
+      },
+    });
+
+    // Associate employees if provided
+    if (employeeIds && Array.isArray(employeeIds) && employeeIds.length > 0) {
+      await prisma.employee.updateMany({
+        where: {
+          id: { in: employeeIds.map(Number) },
+        },
+        data: {
+          teamId: team.id,
+        },
+      });
+    }
+
+    // Fetch the created team with employees
+    const teamWithEmployees = await prisma.team.findUnique({
+      where: { id: team.id },
+      include: {
+        client: true,
+        employees: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        _count: {
+          select: { employees: true },
+        },
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Team created successfully",
+      data: teamWithEmployees,
+    });
   } catch (err) {
     console.error("createTeam error:", err);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({
+      success: false,
+      message: "Failed to create team",
+      error: process.env.NODE_ENV === "development" ? err.message : undefined,
+    });
   }
 }
 
+/**
+ * PUT /api/teams/:id
+ * Update a team
+ */
 async function updateTeam(req, res) {
   const prisma = req.prisma;
   const id = Number(req.params.id);
 
-  try {
-    const { name } = req.body;
+  if (isNaN(id)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid team ID",
+    });
+  }
 
-    const team = await prisma.team.update({
+  try {
+    const {
+      name,
+      title,
+      managerName,
+      managerEmail,
+      clientId,
+      employeeIds, // Array of employee IDs to associate
+    } = req.body;
+
+    // Check if team exists
+    const existingTeam = await prisma.team.findUnique({
       where: { id },
-      data: { name },
     });
 
-    res.json(team);
+    if (!existingTeam) {
+      return res.status(404).json({
+        success: false,
+        message: "Team not found",
+      });
+    }
+
+    // Validate manager email if provided
+    if (managerEmail && !isValidEmail(managerEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid manager email format",
+      });
+    }
+
+    // Check for duplicate name if name is being changed
+    if (name && name.trim() !== existingTeam.name) {
+      const duplicate = await prisma.team.findUnique({
+        where: { name: name.trim() },
+      });
+      if (duplicate) {
+        return res.status(409).json({
+          success: false,
+          message: "Team name already exists",
+        });
+      }
+    }
+
+    // Verify client exists if provided
+    if (clientId !== undefined && clientId !== null) {
+      const clientExists = await prisma.client.findUnique({
+        where: { id: Number(clientId) },
+      });
+      if (!clientExists) {
+        return res.status(404).json({
+          success: false,
+          message: "Client not found",
+        });
+      }
+    }
+
+    // Build update data
+    const updateData = {};
+    if (name !== undefined) updateData.name = name.trim();
+    if (title !== undefined) updateData.title = title?.trim() || null;
+    if (managerName !== undefined)
+      updateData.managerName = managerName?.trim() || null;
+    if (managerEmail !== undefined)
+      updateData.managerEmail = managerEmail?.trim() || null;
+    if (clientId !== undefined) {
+      updateData.clientId = clientId ? Number(clientId) : null;
+    }
+
+    // Update team
+    const team = await prisma.team.update({
+      where: { id },
+      data: updateData,
+      include: {
+        client: true,
+        _count: {
+          select: { employees: true },
+        },
+      },
+    });
+
+    // Update employee associations if provided
+    if (employeeIds !== undefined && Array.isArray(employeeIds)) {
+      // Remove team from all current employees
+      await prisma.employee.updateMany({
+        where: { teamId: id },
+        data: { teamId: null },
+      });
+
+      // Add team to selected employees
+      if (employeeIds.length > 0) {
+        await prisma.employee.updateMany({
+          where: {
+            id: { in: employeeIds.map(Number) },
+          },
+          data: {
+            teamId: id,
+          },
+        });
+      }
+    }
+
+    // Fetch updated team with employees
+    const teamWithEmployees = await prisma.team.findUnique({
+      where: { id },
+      include: {
+        client: true,
+        employees: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        _count: {
+          select: { employees: true },
+        },
+      },
+    });
+
+    res.json({
+      success: true,
+      message: "Team updated successfully",
+      data: teamWithEmployees,
+    });
   } catch (err) {
     console.error("updateTeam error:", err);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({
+      success: false,
+      message: "Failed to update team",
+      error: process.env.NODE_ENV === "development" ? err.message : undefined,
+    });
   }
 }
 
+/**
+ * DELETE /api/teams/:id
+ * Delete a team
+ */
 async function deleteTeam(req, res) {
   const prisma = req.prisma;
   const id = Number(req.params.id);
 
+  if (isNaN(id)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid team ID",
+    });
+  }
+
   try {
-    await prisma.team.delete({ where: { id } });
-    res.status(204).send();
+    // Check if team exists
+    const team = await prisma.team.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { employees: true },
+        },
+      },
+    });
+
+    if (!team) {
+      return res.status(404).json({
+        success: false,
+        message: "Team not found",
+      });
+    }
+
+    // Remove team association from employees
+    await prisma.employee.updateMany({
+      where: { teamId: id },
+      data: { teamId: null },
+    });
+
+    // Delete team
+    await prisma.team.delete({
+      where: { id },
+    });
+
+    res.json({
+      success: true,
+      message: "Team deleted successfully",
+    });
   } catch (err) {
     console.error("deleteTeam error:", err);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete team",
+      error: process.env.NODE_ENV === "development" ? err.message : undefined,
+    });
   }
+}
+
+/**
+ * GET /api/teams/:id/employees
+ * Get all employees in a team
+ */
+async function getTeamEmployees(req, res) {
+  const prisma = req.prisma;
+  const id = Number(req.params.id);
+
+  if (isNaN(id)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid team ID",
+    });
+  }
+
+  try {
+    const team = await prisma.team.findUnique({
+      where: { id },
+      select: { id: true, name: true },
+    });
+
+    if (!team) {
+      return res.status(404).json({
+        success: false,
+        message: "Team not found",
+      });
+    }
+
+    const employees = await prisma.employee.findMany({
+      where: { teamId: id },
+      select: {
+        id: true,
+        employeeCode: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        title: true,
+        active: true,
+        dateOfJoining: true,
+      },
+      orderBy: { firstName: "asc" },
+    });
+
+    res.json({
+      success: true,
+      data: employees,
+      team: team,
+    });
+  } catch (err) {
+    console.error("getTeamEmployees error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch team employees",
+      error: process.env.NODE_ENV === "development" ? err.message : undefined,
+    });
+  }
+}
+
+// Helper function to validate email
+function isValidEmail(email) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
 }
 
 module.exports = {
@@ -86,4 +532,5 @@ module.exports = {
   createTeam,
   updateTeam,
   deleteTeam,
+  getTeamEmployees,
 };
