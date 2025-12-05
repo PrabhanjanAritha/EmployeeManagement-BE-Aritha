@@ -9,7 +9,7 @@ const validateEmail = (email) => {
 const validatePhone = (phone) => {
   // Basic phone validation - adjust regex based on your requirements
   const phoneRegex = /^[\d\s\-\+\(\)]+$/;
-  return phone.length >= 10 && phoneRegex.test(phone);
+  return phone.length >= 10;
 };
 
 const validateEmployeeData = (data, isUpdate = false) => {
