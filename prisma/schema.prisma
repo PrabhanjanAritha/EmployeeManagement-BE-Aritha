@@ -23,16 +23,48 @@ model User {
 
 model Team {
   id        Int        @id @default(autoincrement())
-  name      String
-  employees Employee[]
+  name      String     @unique
+
+   // Manager details (not an employee in system)
+  managerName  String?
+  managerEmail String?
+  
+  // Client relationship
+  clientId    Int?
+  client      Client?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  
+  // Associated employees
+  employees   Employee[]
+  
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  
+  @@index([clientId])
 }
 
 model Client {
-  id        Int        @id @default(autoincrement())
-  name      String
-  industry  String?
-  employees Employee[]
+  id          Int        @id @default(autoincrement())
+  name        String     @unique
+  
+  // POC Internal (within your organization)
+  pocInternalName   String?
+  pocInternalEmail  String?
+  
+  // POC External (client-side contact)
+  pocExternalName   String?
+  pocExternalEmail  String?
+  
+  // Address
+  address     String?
+  
+  // Relationships
+  teams       Team[]
+  employees   Employee[]
+  
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 }
+
 
 model Employee {
   id                        Int      @id @default(autoincrement())
