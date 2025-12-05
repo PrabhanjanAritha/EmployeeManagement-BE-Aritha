@@ -796,7 +796,7 @@ async function getEmployeeStats(req, res) {
   }
 }
 
-export default {
+module.exports = {
   getEmployees,
   getEmployeeById,
   createEmployee,
