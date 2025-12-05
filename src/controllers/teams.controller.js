@@ -195,7 +195,7 @@ async function createTeam(req, res) {
     const team = await prisma.team.create({
       data: {
         name: name.trim(),
-        title: title?.trim() || null,
+        // title: title?.trim() || null,
         managerName: managerName?.trim() || null,
         managerEmail: managerEmail?.trim() || null,
         clientId: clientId ? Number(clientId) : null,
@@ -328,7 +328,7 @@ async function updateTeam(req, res) {
     // Build update data
     const updateData = {};
     if (name !== undefined) updateData.name = name.trim();
-    if (title !== undefined) updateData.title = title?.trim() || null;
+    // if (title !== undefined) updateData.title = title?.trim() || null;
     if (managerName !== undefined)
       updateData.managerName = managerName?.trim() || null;
     if (managerEmail !== undefined)
