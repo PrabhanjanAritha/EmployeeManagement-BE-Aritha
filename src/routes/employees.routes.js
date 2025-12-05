@@ -6,20 +6,39 @@ const {
   createEmployee,
   updateEmployee,
   deleteEmployee,
+  toggleEmployeeStatus, // ✅ NEW
+  getEmployeeStats, // ✅ NEW
 } = require("../controllers/employees.controller");
+
 const {
   getEmployeeNotes,
   addEmployeeNote,
 } = require("../controllers/notes.controller");
-getEmployeeNotes;
+
 const router = express.Router();
 
+// Apply authentication to all routes
 router.use(requireAuth);
 
-// IMPORTANT: notes routes must be before `/:id`
+// ============================================
+// STATS ROUTE - Must come BEFORE /:id routes
+// ============================================
+router.get("/stats", getEmployeeStats);
+
+// ============================================
+// NOTES ROUTES - Must come BEFORE /:id route
+// ============================================
 router.get("/:id/notes", getEmployeeNotes);
 router.post("/:id/notes", addEmployeeNote);
 
+// ============================================
+// STATUS TOGGLE - Must come BEFORE /:id route
+// ============================================
+router.patch("/:id/toggle-status", toggleEmployeeStatus);
+
+// ============================================
+// MAIN EMPLOYEE CRUD ROUTES
+// ============================================
 router.get("/", getEmployees);
 router.get("/:id", getEmployeeById);
 router.post("/", createEmployee);
