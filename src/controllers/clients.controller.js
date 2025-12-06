@@ -99,7 +99,7 @@ async function getClientById(req, res) {
           select: {
             id: true,
             name: true,
-            title: true,
+            // title: true,
             managerName: true,
             managerEmail: true,
             _count: {
