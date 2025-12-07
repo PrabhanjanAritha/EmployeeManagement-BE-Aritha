@@ -7,7 +7,7 @@ const authRoutes = require("./routes/auth.routes");
 const employeeRoutes = require("./routes/employees.routes");
 const teamRoutes = require("./routes/teams.routes");
 const clientRoutes = require("./routes/clients.routes");
-
+const userRoutes = require("./routes/users.routes");
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
@@ -52,6 +52,7 @@ app.use("/auth", authRoutes);
 app.use("/employees", employeeRoutes);
 app.use("/teams", teamRoutes);
 app.use("/clients", clientRoutes);
+app.use("/users", userRoutes);
 
 // Start server
 app.listen(PORT, () => {
