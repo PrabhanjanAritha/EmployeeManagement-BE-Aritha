@@ -18,4 +18,15 @@ function requireAuth(req, res, next) {
   }
 }
 
-module.exports = { requireAuth };
+// NEW: Middleware to require admin role
+function requireAdmin(req, res, next) {
+  // Check if user is admin@arithaconsulting.com
+  if (req.user && req.user.email === "admin@arithaconsulting.com") {
+    return next();
+  }
+
+  return res.status(403).json({
+    message: "Access denied. Admin privileges required.",
+  });
+}
+module.exports = { requireAuth, requireAdmin };
