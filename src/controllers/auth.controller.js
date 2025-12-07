@@ -8,7 +8,16 @@ async function register(req, res) {
     const { email, password, role } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required" });
+      return res
+        .status(400)
+        .json({ message: "Email and password are required" });
+    }
+    // ✅ CHECK IF USER IS ACTIVE
+    if (!user.active) {
+      return res.status(403).json({
+        message:
+          "Your account has been deactivated. Please contact the administrator.",
+      });
     }
 
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -46,6 +55,13 @@ async function login(req, res) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
+    }
+    // ✅ CHECK IF USER IS ACTIVE
+    if (!user.active) {
+      return res.status(403).json({
+        message:
+          "Your account has been deactivated. Please contact the administrator.",
+      });
     }
 
     const isValid = await bcrypt.compare(password, user.passwordHash);
