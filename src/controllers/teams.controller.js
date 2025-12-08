@@ -4,12 +4,15 @@
  * GET /api/teams
  * Get all teams with optional filters
  */
+// GET /api/teams
 async function getTeams(req, res) {
   const prisma = req.prisma;
 
   try {
+    // Query params (strings from req.query)
     const {
       clientId,
+      clientName,
       search,
       includeEmployees,
       page = "1",
@@ -18,41 +21,40 @@ async function getTeams(req, res) {
       sortOrder = "asc",
     } = req.query;
 
-    // Pagination
+    // Pagination (safe defaults & limits)
     const pageNum = Math.max(1, Number(page) || 1);
-    const sizeNum = Math.min(200, Math.max(1, Number(pageSize) || 20)); // allow up to 200
+    const sizeNum = Math.min(200, Math.max(1, Number(pageSize) || 20)); // max 200
     const skip = (pageNum - 1) * sizeNum;
 
     // Build base where
     const where = {};
 
-    // Client filter: accept numeric id or fallback to client name string
+    // Client filter: prefer numeric clientId, otherwise clientName
     if (clientId) {
-      const clientIdNum = Number(clientId);
-      if (!Number.isNaN(clientIdNum)) {
-        where.clientId = clientIdNum;
-      } else {
-        // treat clientId as a name
-        where.client = {
-          name: { contains: String(clientId).trim(), mode: "insensitive" },
-        };
+      const num = Number(clientId);
+      if (!Number.isNaN(num)) {
+        where.clientId = num;
       }
+    } else if (clientName && String(clientName).trim()) {
+      // search by client name via relation
+      where.client = {
+        name: { contains: String(clientName).trim(), mode: "insensitive" },
+      };
     }
 
-    // Search by team fields
-    if (search && search.trim()) {
-      const s = search.trim();
+    // Search across team name, managerName, managerEmail, and client.name
+    if (search && String(search).trim()) {
+      const s = String(search).trim();
       where.OR = [
         { name: { contains: s, mode: "insensitive" } },
-        { title: { contains: s, mode: "insensitive" } },
         { managerName: { contains: s, mode: "insensitive" } },
         { managerEmail: { contains: s, mode: "insensitive" } },
-        { client: { name: { contains: s, mode: "insensitive" } } }, // optionally search by client name
+        { client: { name: { contains: s, mode: "insensitive" } } },
       ];
     }
 
-    // Sorting - allowlist for safety
-    const validSortFields = ["name", "title", "managerName", "createdAt"];
+    // Sorting allow-list
+    const validSortFields = ["name", "managerName", "createdAt", "updatedAt"];
     const orderByField = validSortFields.includes(String(sortBy))
       ? String(sortBy)
       : "name";
@@ -79,15 +81,14 @@ async function getTeams(req, res) {
                 lastName: true,
                 email: true,
                 title: true,
+                // add other employee fields you want to expose
               },
             }
           : false,
-      _count: {
-        select: { employees: true },
-      },
+      _count: { select: { employees: true } },
     };
 
-    // Parallel queries for data + total
+    // Parallel queries for data + total count (keeps pagination correct)
     const [teams, total] = await Promise.all([
       prisma.team.findMany({
         where,
@@ -101,7 +102,7 @@ async function getTeams(req, res) {
 
     const totalPages = Math.ceil(total / sizeNum);
 
-    res.json({
+    return res.json({
       success: true,
       data: teams,
       pagination: {
@@ -114,7 +115,7 @@ async function getTeams(req, res) {
     });
   } catch (err) {
     console.error("getTeams error:", err);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to fetch teams",
       error: process.env.NODE_ENV === "development" ? err.message : undefined,
