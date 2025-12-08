@@ -8,58 +8,109 @@ async function getTeams(req, res) {
   const prisma = req.prisma;
 
   try {
-    const { clientId, search, includeEmployees } = req.query;
+    const {
+      clientId,
+      search,
+      includeEmployees,
+      page = "1",
+      pageSize = "20",
+      sortBy = "name",
+      sortOrder = "asc",
+    } = req.query;
 
+    // Pagination
+    const pageNum = Math.max(1, Number(page) || 1);
+    const sizeNum = Math.min(200, Math.max(1, Number(pageSize) || 20)); // allow up to 200
+    const skip = (pageNum - 1) * sizeNum;
+
+    // Build base where
     const where = {};
 
-    // Filter by client
+    // Client filter: accept numeric id or fallback to client name string
     if (clientId) {
-      where.clientId = Number(clientId);
+      const clientIdNum = Number(clientId);
+      if (!Number.isNaN(clientIdNum)) {
+        where.clientId = clientIdNum;
+      } else {
+        // treat clientId as a name
+        where.client = {
+          name: { contains: String(clientId).trim(), mode: "insensitive" },
+        };
+      }
     }
 
-    // Search by team name or manager name
+    // Search by team fields
     if (search && search.trim()) {
+      const s = search.trim();
       where.OR = [
-        { name: { contains: search.trim(), mode: "insensitive" } },
-        { title: { contains: search.trim(), mode: "insensitive" } },
-        { managerName: { contains: search.trim(), mode: "insensitive" } },
+        { name: { contains: s, mode: "insensitive" } },
+        { title: { contains: s, mode: "insensitive" } },
+        { managerName: { contains: s, mode: "insensitive" } },
+        { managerEmail: { contains: s, mode: "insensitive" } },
+        { client: { name: { contains: s, mode: "insensitive" } } }, // optionally search by client name
       ];
     }
 
-    const teams = await prisma.team.findMany({
-      where,
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            pocInternalName: true,
-            pocInternalEmail: true,
-          },
-        },
-        employees:
-          includeEmployees === "true"
-            ? {
-                where: { active: true },
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
-                  email: true,
-                  title: true,
-                },
-              }
-            : false,
-        _count: {
-          select: { employees: true },
+    // Sorting - allowlist for safety
+    const validSortFields = ["name", "title", "managerName", "createdAt"];
+    const orderByField = validSortFields.includes(String(sortBy))
+      ? String(sortBy)
+      : "name";
+    const orderByDirection =
+      String(sortOrder).toLowerCase() === "desc" ? "desc" : "asc";
+
+    // Build include
+    const include = {
+      client: {
+        select: {
+          id: true,
+          name: true,
+          pocInternalName: true,
+          pocInternalEmail: true,
         },
       },
-      orderBy: { name: "asc" },
-    });
+      employees:
+        includeEmployees === "true"
+          ? {
+              where: { active: true },
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                title: true,
+              },
+            }
+          : false,
+      _count: {
+        select: { employees: true },
+      },
+    };
+
+    // Parallel queries for data + total
+    const [teams, total] = await Promise.all([
+      prisma.team.findMany({
+        where,
+        include,
+        orderBy: { [orderByField]: orderByDirection },
+        skip,
+        take: sizeNum,
+      }),
+      prisma.team.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / sizeNum);
 
     res.json({
       success: true,
       data: teams,
+      pagination: {
+        total,
+        page: pageNum,
+        pageSize: sizeNum,
+        totalPages,
+        hasMore: pageNum < totalPages,
+      },
     });
   } catch (err) {
     console.error("getTeams error:", err);
