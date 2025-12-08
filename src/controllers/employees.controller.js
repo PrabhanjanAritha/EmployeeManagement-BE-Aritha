@@ -78,6 +78,108 @@ const validateEmployeeData = (data, isUpdate = false) => {
 };
 
 // ============================================
+// EXPERIENCE CALCULATION HELPER
+// ============================================
+
+/**
+ * Calculate current total experience
+ * @param {Date|null} dateOfJoining - Employee's date of joining
+ * @param {number|null} experienceYearsAtJoining - Years of experience when joined
+ * @param {number|null} experienceMonthsAtJoining - Months of experience when joined
+ * @returns {Object} - { years, months, totalMonths, formatted }
+ */
+function calculateCurrentExperience(
+  dateOfJoining,
+  experienceYearsAtJoining,
+  experienceMonthsAtJoining
+) {
+  // Default values
+  const expYears = experienceYearsAtJoining || 0;
+  const expMonths = experienceMonthsAtJoining || 0;
+
+  // If no date of joining, return only the joining experience
+  if (!dateOfJoining) {
+    const totalMonths = expYears * 12 + expMonths;
+    return {
+      years: expYears,
+      months: expMonths,
+      totalMonths,
+      formatted: `${expYears}y ${expMonths}m`,
+      experienceAtJoining: {
+        years: expYears,
+        months: expMonths,
+      },
+      experienceSinceJoining: {
+        years: 0,
+        months: 0,
+      },
+    };
+  }
+
+  // Calculate time since joining
+  const now = new Date();
+  const joinDate = new Date(dateOfJoining);
+
+  let yearsSinceJoining = now.getFullYear() - joinDate.getFullYear();
+  let monthsSinceJoining = now.getMonth() - joinDate.getMonth();
+
+  // Adjust if current month is before joining month
+  if (monthsSinceJoining < 0) {
+    yearsSinceJoining--;
+    monthsSinceJoining += 12;
+  }
+
+  // Calculate total experience
+  let totalYears = expYears + yearsSinceJoining;
+  let totalMonths = expMonths + monthsSinceJoining;
+
+  // Normalize months (if >= 12, convert to years)
+  if (totalMonths >= 12) {
+    totalYears += Math.floor(totalMonths / 12);
+    totalMonths = totalMonths % 12;
+  }
+
+  const totalMonthsCount = totalYears * 12 + totalMonths;
+
+  return {
+    years: totalYears,
+    months: totalMonths,
+    totalMonths: totalMonthsCount,
+    formatted: `${totalYears}y ${totalMonths}m`,
+    experienceAtJoining: {
+      years: expYears,
+      months: expMonths,
+      formatted: `${expYears}y ${expMonths}m`,
+    },
+    experienceSinceJoining: {
+      years: yearsSinceJoining,
+      months: monthsSinceJoining,
+      formatted: `${yearsSinceJoining}y ${monthsSinceJoining}m`,
+    },
+  };
+}
+
+/**
+ * Add calculated experience to employee object
+ * @param {Object} employee - Employee object from database
+ * @returns {Object} - Employee with currentExperience field
+ */
+function addCurrentExperience(employee) {
+  if (!employee) return employee;
+
+  const currentExperience = calculateCurrentExperience(
+    employee.dateOfJoining,
+    employee.experienceYearsAtJoining,
+    employee.experienceMonthsAtJoining
+  );
+
+  return {
+    ...employee,
+    currentExperience,
+  };
+}
+
+// ============================================
 // CONTROLLER FUNCTIONS
 // ============================================
 
@@ -151,7 +253,7 @@ async function getEmployees(req, res) {
       where.gender = gender.trim();
     }
 
-    // Experience range filter
+    // Experience range filter (based on experience at joining)
     const expFilter = {};
     if (minExp !== undefined && minExp !== "") {
       const minExpNum = Number(minExp);
@@ -204,9 +306,12 @@ async function getEmployees(req, res) {
 
     const totalPages = Math.ceil(total / sizeNum);
 
+    // Add current experience to each employee
+    const employeesWithExperience = employees.map(addCurrentExperience);
+
     res.json({
       success: true,
-      data: employees,
+      data: employeesWithExperience,
       pagination: {
         total,
         page: pageNum,
@@ -264,9 +369,12 @@ async function getEmployeeById(req, res) {
       });
     }
 
+    // Add current experience calculation
+    const employeeWithExperience = addCurrentExperience(employee);
+
     res.json({
       success: true,
-      data: employee,
+      data: employeeWithExperience,
     });
   } catch (err) {
     console.error("getEmployeeById error:", err);
@@ -302,7 +410,7 @@ async function createEmployee(req, res) {
       experienceMonths,
       title,
       gender,
-      active = true, // ✅ NEW: Default to active
+      active = true,
     } = req.body;
 
     // Validate input
@@ -389,7 +497,7 @@ async function createEmployee(req, res) {
         teamName: team?.trim() || null,
         title: title?.trim() || team?.trim() || null,
         gender: gender?.trim() || null,
-        active: Boolean(active), // ✅ Set active status
+        active: Boolean(active),
         teamId: teamId ? Number(teamId) : null,
         clientId: clientId ? Number(clientId) : null,
       },
@@ -399,10 +507,13 @@ async function createEmployee(req, res) {
       },
     });
 
+    // Add current experience calculation
+    const employeeWithExperience = addCurrentExperience(employee);
+
     res.status(201).json({
       success: true,
       message: "Employee created successfully",
-      data: employee,
+      data: employeeWithExperience,
     });
   } catch (err) {
     console.error("createEmployee error:", err);
@@ -455,7 +566,7 @@ async function updateEmployee(req, res) {
       experienceMonths,
       title,
       gender,
-      active, // ✅ Can now update active status
+      active,
     } = req.body;
 
     // Validate input
@@ -506,7 +617,7 @@ async function updateEmployee(req, res) {
     if (title !== undefined) updateData.title = title?.trim() || null;
     if (gender !== undefined) updateData.gender = gender?.trim() || null;
     if (team !== undefined) updateData.teamName = team?.trim() || null;
-    if (active !== undefined) updateData.active = Boolean(active); // ✅ Update active status
+    if (active !== undefined) updateData.active = Boolean(active);
 
     // Handle emails
     if (personalEmail !== undefined)
@@ -595,10 +706,13 @@ async function updateEmployee(req, res) {
       },
     });
 
+    // Add current experience calculation
+    const employeeWithExperience = addCurrentExperience(employee);
+
     res.json({
       success: true,
       message: "Employee updated successfully",
-      data: employee,
+      data: employeeWithExperience,
     });
   } catch (err) {
     console.error("updateEmployee error:", err);
@@ -654,8 +768,6 @@ async function deleteEmployee(req, res) {
 
     if (hard === "true") {
       // Hard delete - permanently remove from database
-      // Note: This will fail if there are related notes due to foreign key constraints
-      // You might want to delete notes first or use CASCADE in Prisma schema
       try {
         await prisma.employee.delete({ where: { id } });
         return res.json({
@@ -804,4 +916,6 @@ module.exports = {
   deleteEmployee,
   toggleEmployeeStatus,
   getEmployeeStats,
+  calculateCurrentExperience, // Export helper for use elsewhere
+  addCurrentExperience, // Export helper for use elsewhere
 };
