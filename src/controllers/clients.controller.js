@@ -4,71 +4,132 @@
  * GET /api/clients
  * Get all clients with optional filters
  */
+// GET /api/clients
 async function getClients(req, res) {
   const prisma = req.prisma;
 
   try {
-    const { search, includeTeams, includeEmployees } = req.query;
+    const {
+      search,
+      includeTeams,
+      includeEmployees,
+      page,
+      pageSize,
+      // optional: sortBy, sortOrder if you want later
+    } = req.query;
 
+    // Build where
     const where = {};
 
     // Search by client name, POC names, or address
-    if (search && search.trim()) {
+    if (search && String(search).trim()) {
+      const s = String(search).trim();
       where.OR = [
-        { name: { contains: search.trim(), mode: "insensitive" } },
-        { pocInternalName: { contains: search.trim(), mode: "insensitive" } },
-        { pocExternalName: { contains: search.trim(), mode: "insensitive" } },
-        { address: { contains: search.trim(), mode: "insensitive" } },
+        { name: { contains: s, mode: "insensitive" } },
+        { pocInternalName: { contains: s, mode: "insensitive" } },
+        { pocExternalName: { contains: s, mode: "insensitive" } },
+        { address: { contains: s, mode: "insensitive" } },
       ];
     }
 
-    const clients = await prisma.client.findMany({
-      where,
-      include: {
-        teams:
-          includeTeams === "true"
-            ? {
-                select: {
-                  id: true,
-                  name: true,
-                  title: true,
-                  managerName: true,
-                  _count: {
-                    select: { employees: true },
-                  },
-                },
-              }
-            : false,
-        employees:
-          includeEmployees === "true"
-            ? {
-                where: { active: true },
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
-                  email: true,
-                  title: true,
-                },
-              }
-            : false,
-        _count: {
-          select: {
-            teams: true,
-            employees: true,
-          },
+    // Normalize include flags
+    const includeTeamsFlag = includeTeams === "true";
+    const includeEmployeesFlag = includeEmployees === "true";
+
+    // Pagination (optional)
+    const usePagination = page !== undefined || pageSize !== undefined;
+    let pageNum = 1;
+    let sizeNum = 0; // 0 = no limit (return all) unless pagination requested
+
+    if (usePagination) {
+      pageNum = Math.max(1, Number(page) || 1);
+      sizeNum = Math.min(200, Math.max(1, Number(pageSize) || 20)); // default 20, cap 200
+    }
+
+    // Build include object
+    const include = {
+      teams: includeTeamsFlag
+        ? {
+            select: {
+              id: true,
+              name: true,
+              title: true,
+              managerName: true,
+              _count: { select: { employees: true } },
+            },
+          }
+        : false,
+      employees: includeEmployeesFlag
+        ? {
+            where: { active: true },
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              title: true,
+            },
+          }
+        : false,
+      _count: {
+        select: {
+          teams: true,
+          employees: true,
         },
       },
-      orderBy: { name: "asc" },
-    });
+    };
 
-    res.json({
+    // If pagination requested use skip/take, otherwise fetch all
+    let clients;
+    let total = 0;
+
+    if (usePagination) {
+      const skip = (pageNum - 1) * sizeNum;
+
+      const [rows, count] = await Promise.all([
+        prisma.client.findMany({
+          where,
+          include,
+          orderBy: { name: "asc" },
+          skip,
+          take: sizeNum,
+        }),
+        prisma.client.count({ where }),
+      ]);
+
+      clients = rows;
+      total = count;
+    } else {
+      // no pagination: return all matching rows
+      clients = await prisma.client.findMany({
+        where,
+        include,
+        orderBy: { name: "asc" },
+      });
+      total = Array.isArray(clients) ? clients.length : 0;
+    }
+
+    // Build response
+    const response = {
       success: true,
       data: clients,
-    });
+    };
+
+    if (usePagination) {
+      const totalPages = Math.ceil(total / sizeNum);
+      response.pagination = {
+        total,
+        page: pageNum,
+        pageSize: sizeNum,
+        totalPages,
+        hasMore: pageNum < totalPages,
+      };
+    }
+
+    return res.json(response);
   } catch (err) {
     console.error("getClients error:", err);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to fetch clients",
       error: process.env.NODE_ENV === "development" ? err.message : undefined,
