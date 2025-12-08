@@ -85,10 +85,10 @@ async function getUserById(req, res) {
  * PATCH /api/users/:id/status
  * Update user active status
  */
-async function updateUserStatus(req, res) {
+async function updateUserRole(req, res) {
   const prisma = req.prisma;
   const id = Number(req.params.id);
-  const { active } = req.body;
+  const { role } = req.body;
 
   if (isNaN(id)) {
     return res.status(400).json({
@@ -97,10 +97,11 @@ async function updateUserStatus(req, res) {
     });
   }
 
-  if (typeof active !== "boolean") {
+  // Validate role
+  if (!role || !["hr", "admin"].includes(role)) {
     return res.status(400).json({
       success: false,
-      message: "Active status must be a boolean",
+      message: "Invalid role. Must be 'hr' or 'admin'",
     });
   }
 
@@ -117,21 +118,18 @@ async function updateUserStatus(req, res) {
       });
     }
 
-    // Prevent deactivating admin@arithaconsulting.com
-    if (
-      existingUser.email === "admin@arithaconsulting.com" &&
-      active === false
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "Cannot deactivate the main admin account",
-      });
-    }
+    // Prevent changing admin@arithaconsulting.com role
+    // if (existingUser.email === "admin@arithaconsulting.com") {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: "Cannot change role of primary admin account",
+    //   });
+    // }
 
-    // Update user status
+    // Update user role
     const user = await prisma.user.update({
       where: { id },
-      data: { active },
+      data: { role },
       select: {
         id: true,
         email: true,
@@ -143,68 +141,17 @@ async function updateUserStatus(req, res) {
 
     res.json({
       success: true,
-      message: `User ${active ? "activated" : "deactivated"} successfully`,
+      message: "User role updated successfully",
       data: user,
     });
   } catch (err) {
-    console.error("updateUserStatus error:", err);
-    res.status(500).json({
-      success: false,
-      message: "Failed to update user status",
-    });
-  }
-}
-const updateUserRole = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { role } = req.body;
-
-    // Validate role
-    if (!role || !["hr", "admin"].includes(role)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid role. Must be 'hr' or 'admin'",
-      });
-    }
-
-    // Prevent changing admin@arithaconsulting.com role
-    const user = await User.findByPk(id);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    if (user.email === "admin@arithaconsulting.com") {
-      return res.status(403).json({
-        success: false,
-        message: "Cannot change role of primary admin account",
-      });
-    }
-
-    // Update role
-    user.role = role;
-    await user.save();
-
-    res.json({
-      success: true,
-      message: "User role updated successfully",
-      data: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        active: user.active,
-      },
-    });
-  } catch (error) {
-    console.error("Error updating user role:", error);
+    console.error("updateUserRole error:", err);
     res.status(500).json({
       success: false,
       message: "Failed to update user role",
     });
   }
-};
+}
 /**
  * DELETE /api/users/:id
  * Delete a user (admin only)
