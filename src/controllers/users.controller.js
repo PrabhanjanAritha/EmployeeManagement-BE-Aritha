@@ -188,12 +188,12 @@ async function updateUserRole(req, res) {
     }
 
     // Prevent changing admin@arithaconsulting.com role
-    // if (existingUser.email === "admin@arithaconsulting.com") {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: "Cannot change role of primary admin account",
-    //   });
-    // }
+    if (existingUser.email === "admin@arithaconsulting.com") {
+      return res.status(403).json({
+        success: false,
+        message: "Cannot change role of primary admin account",
+      });
+    }
 
     // Update user role
     const user = await prisma.user.update({

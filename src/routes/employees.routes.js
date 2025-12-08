@@ -1,5 +1,8 @@
 const express = require("express");
-const { requireAuth } = require("../middleware/auth.middleware");
+const {
+  requireAuth,
+  requireAdminEdit,
+} = require("../middleware/auth.middleware");
 const {
   getEmployees,
   getEmployeeById,
@@ -29,20 +32,20 @@ router.get("/stats", getEmployeeStats);
 // NOTES ROUTES - Must come BEFORE /:id route
 // ============================================
 router.get("/:id/notes", getEmployeeNotes);
-router.post("/:id/notes", addEmployeeNote);
+router.post("/:id/notes", requireAdminEdit, addEmployeeNote);
 
 // ============================================
 // STATUS TOGGLE - Must come BEFORE /:id route
 // ============================================
-router.patch("/:id/toggle-status", toggleEmployeeStatus);
+router.patch("/:id/toggle-status", requireAdminEdit, toggleEmployeeStatus);
 
 // ============================================
 // MAIN EMPLOYEE CRUD ROUTES
 // ============================================
 router.get("/", getEmployees);
 router.get("/:id", getEmployeeById);
-router.post("/", createEmployee);
-router.put("/:id", updateEmployee);
-router.delete("/:id", deleteEmployee);
+router.post("/", requireAdminEdit, createEmployee);
+router.put("/:id", requireAdminEdit, updateEmployee);
+router.delete("/:id", requireAdminEdit, deleteEmployee);
 
 module.exports = router;

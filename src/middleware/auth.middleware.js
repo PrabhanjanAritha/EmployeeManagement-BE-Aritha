@@ -59,8 +59,18 @@ function requireAdmin(req, res, next) {
   }
 
   return res.status(403).json({
+    message: "Access denied. TN-Admin privileges required.",
+  });
+}
+// Middleware to require admin role
+function requireAdminEdit(req, res, next) {
+  // Check if user is admin@arithaconsulting.com
+  if (req.user && req.user.role === "admin") {
+    return next();
+  }
+
+  return res.status(403).json({
     message: "Access denied. Admin privileges required.",
   });
 }
-
-module.exports = { requireAuth, requireAdmin };
+module.exports = { requireAuth, requireAdmin, requireAdminEdit };

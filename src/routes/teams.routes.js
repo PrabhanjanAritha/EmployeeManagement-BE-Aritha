@@ -1,6 +1,9 @@
 // routes/teams.routes.js
 const express = require("express");
-const { requireAuth } = require("../middleware/auth.middleware");
+const {
+  requireAuth,
+  requireAdminEdit,
+} = require("../middleware/auth.middleware");
 const {
   getTeams,
   getTeamById,
@@ -21,8 +24,8 @@ router.get("/:id/employees", getTeamEmployees);
 // Main CRUD routes
 router.get("/", getTeams);
 router.get("/:id", getTeamById);
-router.post("/", createTeam);
-router.put("/:id", updateTeam);
-router.delete("/:id", deleteTeam);
+router.post("/", requireAdminEdit, createTeam);
+router.put("/:id", requireAdminEdit, updateTeam);
+router.delete("/:id", requireAdminEdit, deleteTeam);
 
 module.exports = router;
