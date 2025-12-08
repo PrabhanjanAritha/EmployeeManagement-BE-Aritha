@@ -85,6 +85,75 @@ async function getUserById(req, res) {
  * PATCH /api/users/:id/status
  * Update user active status
  */
+async function updateUserStatus(req, res) {
+  const prisma = req.prisma;
+  const id = Number(req.params.id);
+  const { active } = req.body;
+
+  if (isNaN(id)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid user ID",
+    });
+  }
+
+  if (typeof active !== "boolean") {
+    return res.status(400).json({
+      success: false,
+      message: "Active status must be a boolean",
+    });
+  }
+
+  try {
+    // Check if user exists
+    const existingUser = await prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Prevent deactivating admin@arithaconsulting.com
+    if (
+      existingUser.email === "admin@arithaconsulting.com" &&
+      active === false
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Cannot deactivate the main admin account",
+      });
+    }
+
+    // Update user status
+    const user = await prisma.user.update({
+      where: { id },
+      data: { active },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        active: true,
+        updatedAt: true,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: `User ${active ? "activated" : "deactivated"} successfully`,
+      data: user,
+    });
+  } catch (err) {
+    console.error("updateUserStatus error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update user status",
+    });
+  }
+}
 async function updateUserRole(req, res) {
   const prisma = req.prisma;
   const id = Number(req.params.id);
@@ -152,6 +221,7 @@ async function updateUserRole(req, res) {
     });
   }
 }
+
 /**
  * DELETE /api/users/:id
  * Delete a user (admin only)
