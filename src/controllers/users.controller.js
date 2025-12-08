@@ -154,7 +154,57 @@ async function updateUserStatus(req, res) {
     });
   }
 }
+const updateUserRole = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body;
 
+    // Validate role
+    if (!role || !["hr", "admin"].includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid role. Must be 'hr' or 'admin'",
+      });
+    }
+
+    // Prevent changing admin@arithaconsulting.com role
+    const user = await User.findByPk(id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    if (user.email === "admin@arithaconsulting.com") {
+      return res.status(403).json({
+        success: false,
+        message: "Cannot change role of primary admin account",
+      });
+    }
+
+    // Update role
+    user.role = role;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "User role updated successfully",
+      data: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        active: user.active,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating user role:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update user role",
+    });
+  }
+};
 /**
  * DELETE /api/users/:id
  * Delete a user (admin only)
@@ -226,5 +276,6 @@ module.exports = {
   getUsers,
   getUserById,
   updateUserStatus,
+  updateUserRole,
   deleteUser,
 };

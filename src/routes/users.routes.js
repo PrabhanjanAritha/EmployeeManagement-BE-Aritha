@@ -5,6 +5,7 @@ const {
   getUsers,
   getUserById,
   updateUserStatus,
+  updateUserRole,
   deleteUser,
 } = require("../controllers/users.controller");
 
@@ -19,6 +20,7 @@ router.use(requireAdmin);
 router.get("/", getUsers);
 router.get("/:id", getUserById);
 router.patch("/:id/status", updateUserStatus);
+router.patch("/:id/role", updateUserRole);
 router.delete("/:id", deleteUser);
 
 module.exports = router;
