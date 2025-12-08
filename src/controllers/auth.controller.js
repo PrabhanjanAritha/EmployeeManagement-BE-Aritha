@@ -12,13 +12,13 @@ async function register(req, res) {
         .status(400)
         .json({ message: "Email and password are required" });
     }
-    // ✅ CHECK IF USER IS ACTIVE
-    if (!user.active) {
-      return res.status(403).json({
-        message:
-          "Your account has been deactivated. Please contact the administrator.",
-      });
-    }
+    // // ✅ CHECK IF USER IS ACTIVE
+    // if (!user.active) {
+    //   return res.status(403).json({
+    //     message:
+    //       "Your account has been deactivated. Please contact the administrator.",
+    //   });
+    // }
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
