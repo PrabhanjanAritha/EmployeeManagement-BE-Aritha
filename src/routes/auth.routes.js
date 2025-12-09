@@ -11,7 +11,7 @@ const {
 } = require("../controllers/auth.controller");
 
 // Import your authentication middleware
-const { authenticateToken } = require("../middleware/auth.middleware"); // Adjust path as needed
+const { requireAuth, requireAdmin } = require("../middleware/auth.middleware");
 
 const router = express.Router();
 
@@ -68,7 +68,8 @@ router.post("/reset-admin-password", resetPasswordLimiter, resetAdminPassword);
 // Set recovery answer (first time or overwrite)
 router.post(
   "/set-recovery-answer",
-  authenticateToken,
+  requireAuth,
+  requireAdmin,
   recoveryAnswerLimiter,
   setRecoveryAnswer
 );
@@ -76,12 +77,13 @@ router.post(
 // Update recovery answer (requires old answer)
 router.post(
   "/update-recovery-answer",
-  authenticateToken,
+  requireAuth,
+  requireAdmin,
   recoveryAnswerLimiter,
   updateRecoveryAnswer
 );
 
 // Change password (requires current password)
-router.post("/change-password", authenticateToken, changePassword);
+router.post("/change-password", requireAuth, requireAdmin, changePassword);
 
 module.exports = router;

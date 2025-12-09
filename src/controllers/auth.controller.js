@@ -415,4 +415,6 @@ module.exports = {
   changePassword,
   resetAdminPassword,
   setRecoveryAnswer,
+  updateRecoveryAnswer, // ✅ Added this
+  checkRecoveryConfigured,
 };
