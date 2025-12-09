@@ -8,6 +8,7 @@ const {
   updateRecoveryAnswer,
   resetAdminPassword,
   changePassword,
+  checkRecoveryConfigured,
 } = require("../controllers/auth.controller");
 
 // Import your authentication middleware
@@ -57,6 +58,8 @@ router.post("/register", register);
 
 // Login
 router.post("/login", loginLimiter, login);
+
+router.get("/recovery-configured", checkRecoveryConfigured);
 
 // Reset admin password using recovery answer (FORGOT PASSWORD)
 router.post("/reset-admin-password", resetPasswordLimiter, resetAdminPassword);
